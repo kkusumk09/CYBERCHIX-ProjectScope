@@ -183,6 +183,7 @@ export function DiscoveryStudio({ initial }: { initial: DiscoveryState | null })
   const [state, setState] = useState<DiscoveryState | null>(initial);
   const [events, setEvents] = useState<LiveEvent[]>([]);
   const [starting, setStarting] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedConceptId, setSelectedConceptId] = useState<string | null>(
     initial?.recommendation?.conceptId ?? null,
@@ -225,6 +226,28 @@ export function DiscoveryStudio({ initial }: { initial: DiscoveryState | null })
 
     return () => source.close();
   }, [state?.jobId, state?.id, state?.status, load]);
+
+  /*
+   * Polling fallback.
+   *
+   * The SSE stream can miss the final event when the background job finishes
+   * between the request and the connection being opened. Polling while the run
+   * is active guarantees the screen converges on the real final state instead
+   * of waiting for a reload.
+   */
+  const activeStateId = state?.id;
+  const activeStateStatus = state?.status;
+
+  useEffect(() => {
+    if (!activeStateId) return;
+    if (activeStateStatus && ["completed", "failed", "cancelled"].includes(activeStateStatus)) return;
+
+    const timer = setInterval(() => {
+      void load(activeStateId);
+    }, 3000);
+
+    return () => clearInterval(timer);
+  }, [activeStateId, activeStateStatus, load]);
 
   useEffect(() => {
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight, behavior: "smooth" });
@@ -269,17 +292,44 @@ export function DiscoveryStudio({ initial }: { initial: DiscoveryState | null })
 
   const regenerate = async () => {
     if (!state) return;
+    setRegenerating(true);
     setError(null);
     setProposal(null);
     setEvents([]);
-    const response = await fetch(`/api/discover/${state.id}/proposal`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "regenerate" }),
-    });
-    if (!response.ok) {
-      const payload = await response.json().catch(() => null);
-      setError(payload?.error?.message ?? "The concepts could not be regenerated.");
+    try {
+      const response = await fetch(`/api/discover/${state.id}/proposal`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "regenerate" }),
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        setError(payload?.error?.message ?? "The concepts could not be regenerated.");
+        return;
+      }
+
+      /*
+       * The server resets the run and regenerates in the background. Flip the
+       * local state to "running" straight away so the progress log and the
+       * SSE stream come back — otherwise the button looked completely inert
+       * and the user had to reload the page to see the new concepts.
+       */
+      setState((current) =>
+        current
+          ? {
+              ...current,
+              status: "running",
+              stage: "queued",
+              concepts: [],
+              recommendation: null,
+              errorMessage: null,
+            }
+          : current,
+      );
+    } catch {
+      setError("The concepts could not be regenerated. Check that the server is running.");
+    } finally {
+      setRegenerating(false);
     }
   };
 
@@ -595,8 +645,9 @@ export function DiscoveryStudio({ initial }: { initial: DiscoveryState | null })
           {state.resultCount} record(s) researched · {concepts.length} concept(s) designed
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button tone="paper" onClick={regenerate}>
-            Regenerate ideas
+          <Button tone="paper" onClick={regenerate} disabled={regenerating}>
+            {regenerating ? <Spinner /> : null}
+            {regenerating ? "Regenerating…" : "Regenerate ideas"}
           </Button>
           <Link
             href={`/projects?jobId=${state.jobId}`}

@@ -16,7 +16,7 @@ export default function NotFound() {
       <div className="mt-8 flex flex-wrap justify-center gap-3">
         <Link
           href="/research"
-          className="inline-flex h-10 items-center rounded-lg bg-ink px-4 text-sm font-semibold text-ink shadow-sm hover:bg-ink-soft"
+          className="inline-flex h-10 items-center rounded-lg bg-ink px-4 text-sm font-semibold text-paper-2 shadow-sm hover:bg-ink-soft"
         >
           Start a research run
         </Link>

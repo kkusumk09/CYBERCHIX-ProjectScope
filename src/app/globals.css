@@ -19,6 +19,7 @@
   /* -- the ink ------------------------------------------------------------ */
   --color-ink: #0a0a0a;
   --color-ink-soft: #232323;
+  --color-ink-100: #e6e2d6;
   --color-paper: #f2efe4;
   --color-paper-2: #fffdf5;
 
@@ -34,6 +35,25 @@
   --color-good: #1ec26b;
   --color-warn: #ffb800;
   --color-bad: #ff3b30;
+
+  /* Shades for the semantic colours. Tailwind only generates utilities for
+     the shades that actually exist, so a `bg-good-500` class is dead CSS
+     unless `--color-good-500` is declared here. Keep this list in sync with
+     every `-(good|warn|bad)-\d{3}` utility used in the app. */
+  --color-good-100: #d3f7e5;
+  --color-good-500: #1ec26b;
+  --color-good-700: #0f6f3d;
+  --color-warn-100: #fff1c9;
+  --color-warn-500: #ffb800;
+  --color-warn-700: #8a5f00;
+  --color-bad-100: #ffdcd9;
+  --color-bad-500: #ff3b30;
+  --color-bad-700: #a1150d;
+
+  /* Pink wash used behind the light-on-dark marketing blocks. */
+  --color-brand-100: #ffd7e8;
+  /* The readable counterpart of `--color-ink` for use on dark backgrounds. */
+  --color-ink-inverse: #f2efe4;
 
   --font-sans: var(--font-geist-sans), "Helvetica Neue", Helvetica, Arial, sans-serif;
   --font-mono: var(--font-geist-mono), "Courier New", Courier, monospace;

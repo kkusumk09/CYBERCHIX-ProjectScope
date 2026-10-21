@@ -7,6 +7,8 @@ import { conceptRequestSchema } from "@/lib/schema";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+/** The concepts are produced by a live model call with a 45s timeout. */
+export const maxDuration = 300;
 
 const querySchema = z.object({ jobId: z.string().min(1) });
 

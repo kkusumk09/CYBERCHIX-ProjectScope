@@ -39,7 +39,7 @@ export default async function ComparePage({ searchParams }: PageProps<"/compare"
             action={
               <Link
                 href="/research"
-                className="inline-flex h-10 items-center rounded-lg bg-ink px-4 text-sm font-semibold text-ink hover:bg-ink-soft"
+                className="inline-flex h-10 items-center rounded-lg bg-ink px-4 text-sm font-semibold text-paper-2 hover:bg-ink-soft"
               >
                 Start a new research run
               </Link>
@@ -82,7 +82,9 @@ export default async function ComparePage({ searchParams }: PageProps<"/compare"
         <JobSelect jobs={jobs} currentJobId={jobId} />
       </div>
 
-      <CompareWorkspace jobId={jobId} projects={projects} />
+      {/* `key` forces a remount when the run changes, so the selection made
+          for the previous run is never posted against the new one. */}
+      <CompareWorkspace key={jobId} jobId={jobId} projects={projects} />
     </div>
   );
 }

@@ -22,11 +22,15 @@ export function LandingSearch() {
   const router = useRouter();
   const [value, setValue] = useState("");
 
+  const go = (topic: string) => {
+    const trimmed = topic.trim();
+    if (!trimmed) return;
+    router.push(`/research?topic=${encodeURIComponent(trimmed)}`);
+  };
+
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
-    const topic = value.trim();
-    if (!topic) return;
-    router.push(`/research?topic=${encodeURIComponent(topic)}`);
+    go(value);
   };
 
   return (
@@ -54,7 +58,9 @@ export function LandingSearch() {
           <button
             key={example}
             type="button"
-            onClick={() => setValue(example)}
+            // The chips read like one-click actions, so they start the
+            // research straight away instead of only filling the input.
+            onClick={() => go(example)}
             className="brutal-tag hover:bg-acid"
           >
             {example}

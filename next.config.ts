@@ -8,7 +8,13 @@ const nextConfig: NextConfig = {
 
   // Prisma and the provider SDKs must stay outside the bundler so their
   // native/dynamic parts are not rewritten.
-  serverExternalPackages: ["@prisma/client", "@prisma/adapter-better-sqlite3", "better-sqlite3"],
+  serverExternalPackages: [
+    "@prisma/client",
+    "@prisma/adapter-better-sqlite3",
+    "@prisma/adapter-libsql",
+    "better-sqlite3",
+    "@libsql/client",
+  ],
 
   turbopack: {
     rules: {

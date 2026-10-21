@@ -79,7 +79,7 @@ export default async function ProjectDetailPage({ params }: PageProps<"/projects
             href={project.sourceUrl}
             target="_blank"
             rel="noopener noreferrer nofollow"
-            className="inline-flex h-10 items-center justify-center rounded-lg bg-ink px-4 text-sm font-semibold text-ink shadow-sm hover:bg-ink-soft"
+            className="inline-flex h-10 items-center justify-center rounded-lg bg-ink px-4 text-sm font-semibold text-paper-2 shadow-sm hover:bg-ink-soft"
           >
             Open original source ↗
           </a>

@@ -156,7 +156,7 @@ export function LiveResearch({ initialJob, initialEvents }: { initialJob: LiveJo
           </Button>
           <Link
             href={`/projects?jobId=${job.id}`}
-            className="inline-flex h-10 items-center rounded-lg bg-ink px-4 text-sm font-semibold text-ink shadow-sm transition-colors hover:bg-ink-soft"
+            className="inline-flex h-10 items-center rounded-lg bg-ink px-4 text-sm font-semibold text-paper-2 shadow-sm transition-colors hover:bg-ink-soft"
           >
             Open projects
           </Link>

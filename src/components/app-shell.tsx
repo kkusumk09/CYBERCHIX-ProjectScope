@@ -17,26 +17,36 @@ const NAV = [
   { href: "/discover", label: "Find an idea", always: true },
   { href: "/research", label: "Research", always: true },
   { href: "/projects", label: "Projects", always: true },
-  { href: "/compare", label: "Compare", always: false },
-  { href: "/report", label: "Market gaps", always: false },
-  { href: "/ideas", label: "Idea Studio", always: false },
-  { href: "/pitch", label: "Pitch Studio", always: false },
+  { href: "/compare", label: "Compare", always: true },
+  { href: "/report", label: "Market gaps", always: true },
+  { href: "/ideas", label: "Idea Studio", always: true },
+  { href: "/pitch", label: "Pitch Studio", always: true },
   { href: "/saved", label: "Saved", always: true },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [demoMode, setDemoMode] = useState<boolean | null>(null);
+  const [statusError, setStatusError] = useState(false);
 
   useEffect(() => {
     let active = true;
     fetch("/api/health")
-      .then((response) => response.json())
+      .then((response) => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response.json();
+      })
       .then((data) => {
-        if (active) setDemoMode(Boolean(data.demoMode));
+        if (!active) return;
+        setStatusError(false);
+        setDemoMode(Boolean(data.demoMode));
       })
       .catch(() => {
-        if (active) setDemoMode(null);
+        if (!active) return;
+        // Say so rather than pretending everything is fine — a failed status
+        // check usually means the server or the database is unreachable.
+        setStatusError(true);
+        setDemoMode(null);
       });
     return () => {
       active = false;
@@ -45,6 +55,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <>
+      {statusError ? (
+        <div className="border-[3px] flex items-center justify-center gap-2 border-b-[3px] border-ink bg-warn-500 px-4 py-2 text-center text-xs font-black uppercase tracking-widest text-ink">
+          <span className="font-medium normal-case tracking-normal">
+            — could not reach the server to check whether live research is available. Research
+            actions will fail until the server and the database are reachable.
+          </span>
+        </div>
+      ) : null}
+
       {demoMode ? (
         <div className="border-[3px] flex items-center justify-center gap-2 border-b-[3px] border-ink bg-acid px-4 py-2 text-center text-xs font-black uppercase tracking-widest text-ink">
           <span className="hidden sm:inline">Demo mode</span>
@@ -75,7 +94,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   href={item.href}
                   className={cn(
                     "whitespace-nowrap border-[3px] px-2.5 py-1.5 text-xs font-black uppercase tracking-wide transition-transform hover:-translate-y-0.5",
-                    item.always ? "inline-block" : "hidden lg:inline-block",
+                    // The nav scrolls horizontally on small screens, so every
+                    // destination stays reachable instead of being hidden.
+                    "inline-block",
                     active
                       ? "border-[3px] border-ink bg-ink text-paper-2"
                       : "border-transparent text-ink/70 hover:border-ink hover:bg-acid",

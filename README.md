@@ -22,6 +22,7 @@ It combines web research, AI-powered analysis, project comparison, and structure
 - [Getting Started](#-getting-started)
 - [Environment Configuration](#-environment-configuration)
 - [Demo Mode](#-demo-mode)
+- [Deploying to Vercel](#-deploying-to-vercel)
 - [Available Commands](#-available-commands)
 - [API Overview](#-api-overview)
 - [Project Structure](#-project-structure)
@@ -295,10 +296,12 @@ ProjectScope combines a modern web application framework, structured data valida
 | Neo-Brutalist UI system | Distinctive visual design and interface components |
 | Lenis | Smooth scrolling |
 | Prisma 7 | Database access and data modeling |
-| SQLite | Local relational database |
-| `better-sqlite3` | SQLite driver adapter |
+| SQLite / libSQL | Relational database — a local file in development, hosted Turso in production |
+| `better-sqlite3` | SQLite driver adapter (local file) |
+| `@prisma/adapter-libsql` | libSQL/Turso driver adapter (hosted database) |
 | Zod v4 | Input validation and structured data validation |
 | Server-Sent Events | Live research progress updates |
+| Next.js `after()` | Keeps background research jobs alive on a serverless platform |
 | TinyFish SDK | Search and permitted page retrieval |
 | OpenAI SDK | Structured AI outputs and project analysis |
 | Google GenAI SDK | Grounded analysis and market-gap research |
@@ -383,13 +386,13 @@ External API credentials are optional if you want to start in demo mode.
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/NNemesis16/Kritikal-Hacks.git
+git clone https://github.com/kkusumk09/CYBERCHIX-ProjectScope.git
 ```
 
 Move into the project directory:
 
 ```bash
-cd Kritikal-Hacks
+cd CYBERCHIX-ProjectScope
 ```
 
 ### 2. Install Dependencies
@@ -493,6 +496,7 @@ Add the relevant values to `.env.local`. Never commit real credentials to GitHub
 | `TINYFISH_API_KEY` | Enables project discovery and permitted source retrieval |
 | `OPENAI_API_KEY` | Enables research normalization, comparisons, scoring, and proposal generation |
 | `GEMINI_API_KEY` | Enables Gemini-powered analysis and grounded research where supported |
+| `DATABASE_URL` | Points at the database. **Required in production** — see [Deploying to Vercel](#-deploying-to-vercel) |
 
 Obtain credentials from the providers' official websites:
 
@@ -506,12 +510,25 @@ Obtain credentials from the providers' official websites:
 |---|---|---|
 | `OPENAI_MODEL` | `gpt-6.1-sol` | Selects the configured OpenAI model |
 | `GEMINI_MODEL` | `gemini-3.8-flash` | Selects the configured Gemini model |
-| `DATABASE_URL` | `file:./dev.db` | Configures the SQLite database URL |
+| `TURSO_AUTH_TOKEN` | Unset | Auth token for a hosted libSQL/Turso database |
 | `DEMO_MODE` | Unset | Set to `true` to force demo mode |
 | `MAX_RESULTS_LIMIT` | `40` | Sets the maximum number of records collected per run |
 | `PROVIDER_TIMEOUT_MS` | `45000` | Sets the timeout for external provider calls |
 
 The model defaults shown above come from the repository configuration. Confirm that your chosen provider account supports the configured model names before running live workflows.
+
+### Database Configuration
+
+ProjectScope speaks the SQLite dialect, and the same Prisma schema and the same
+migrations work against both supported backends.
+
+| `DATABASE_URL` | Backend | When |
+|---|---|---|
+| `file:./dev.db` | A local SQLite file | Local development |
+| `libsql://<db>.turso.io` | Hosted libSQL (Turso) | Production, including Vercel |
+
+The driver is chosen automatically from the URL scheme in `src/lib/sqlite-adapter.ts`.
+No schema change and no separate migration set is needed to move between them.
 
 ### Example `.env.local`
 
@@ -553,6 +570,141 @@ Demo records are labelled as synthetic sample data. They must not be treated as 
 
 ---
 
+## 🚀 Deploying to Vercel
+
+The application is a standard Next.js App Router project, so Vercel needs no special
+framework configuration. Two things do need attention: the **database** and the
+**long-running background jobs**.
+
+### 1. The database has to be hosted
+
+Vercel's serverless filesystem is read-only and ephemeral. A local SQLite file
+cannot hold data between requests, so a hosted database is required.
+
+The supported choice is **[Turso](https://turso.tech)** (libSQL), which speaks the
+same SQLite dialect. The Prisma schema and the migrations are identical for the
+local file and for Turso — only the connection URL changes.
+
+```bash
+# Create a free database and get a token
+npm install -g @turso/cli
+turso db create projectscope
+turso db tokens create --type client
+```
+
+Add the credentials to the Vercel project under **Settings → Environment Variables**:
+
+| Variable | Value |
+|---|---|
+| `DATABASE_URL` | `libsql://<your-database>.turso.io` |
+| `TURSO_AUTH_TOKEN` | The token from `turso db tokens create` |
+| `TINYFISH_API_KEY` | Your TinyFish key (optional — without it the app runs in demo mode) |
+| `OPENAI_API_KEY` | Your OpenAI key (optional) |
+| `GEMINI_API_KEY` | Your Gemini key (optional) |
+
+Apply the migrations to the hosted database once, from your machine:
+
+```bash
+$env:DATABASE_URL = "libsql://<your-database>.turso.io"
+$env:TURSO_AUTH_TOKEN = "<your-token>"
+npx prisma migrate deploy
+```
+
+### 2. Import the project
+
+```bash
+npx vercel link
+npx vercel env pull .env.local
+npx vercel deploy --prod
+```
+
+Or connect the GitHub repository in the Vercel dashboard and push. The build
+command is already pinned in `vercel.json`:
+
+```
+npm run vercel-build
+```
+
+which runs, in order:
+
+1. `npm run check:env` — fails the build with an actionable message if
+   `DATABASE_URL` is missing or still points at a local file. A deployment that
+   cannot store data is worse than a failed deployment.
+2. `prisma migrate deploy` — applies any pending migrations to the hosted database.
+3. `prisma generate` — builds the Prisma client (its output is git-ignored).
+4. `next build`.
+
+### 3. Background jobs and long requests
+
+A research run takes minutes: it searches several sources, then calls two models.
+Two mechanisms keep that working on a serverless platform:
+
+- **`after()`** (`src/lib/background.ts`) — the pipeline is started with
+  `after()`, so the platform keeps the invocation alive after the response has
+  been returned. A plain fire-and-forget promise would be frozen the moment the
+  response was sent, and the run would never finish.
+- **`maxDuration = 300`** — every route that calls a provider or holds the
+  progress stream open declares this, so the function is not cut off at the
+  default budget.
+
+The browser follows the run over Server-Sent Events and falls back to polling,
+so progress is shown even if a connection is dropped.
+
+### 4. Optional: load the sample dataset
+
+To give a fresh deployment something to show, load the bundled demo data. The
+seed refuses to run against a database that already holds research runs, so it
+can never overwrite real work:
+
+```bash
+npx prisma db seed
+```
+
+To wipe and reseed deliberately:
+
+```bash
+npx prisma db seed -- --force
+```
+
+### 5. Verify the deployment
+
+```bash
+curl https://<your-deployment>.vercel.app/api/health
+```
+
+The response reports the provider status **and** whether the database actually
+answers. A healthy deployment looks like this:
+
+```json
+{
+  "ok": true,
+  "demoMode": false,
+  "database": { "ok": true, "kind": "libsql" },
+  "providers": [
+    { "name": "tinyfish", "configured": true, "model": null },
+    { "name": "openai", "configured": true, "model": "gpt-6.1-sol" },
+    { "name": "gemini", "configured": true, "model": "gemini-3.8-flash" }
+  ]
+}
+```
+
+If `database.ok` is `false`, the `DATABASE_URL` or the auth token is wrong.
+
+### Deploying somewhere else
+
+The application is not tied to Vercel. On a long-lived Node server:
+
+```bash
+npm run build
+npm start
+```
+
+`after()` is fully supported by `next start`, and a local SQLite file is fine
+there. Set `DATABASE_URL=file:./dev.db` and run `npx prisma migrate deploy`
+once.
+
+---
+
 ## 💻 Available Commands
 
 The following commands are useful during development.
@@ -564,6 +716,8 @@ The following commands are useful during development.
 | `npm run lint` | Runs ESLint |
 | `npm test` | Runs the Vitest test suite |
 | `npm run build` | Creates a production build |
+| `npm run check:env` | Validates the production configuration |
+| `npm run vercel-build` | The production build used by Vercel |
 | `npx prisma generate` | Generates the Prisma client |
 | `npx prisma migrate deploy` | Applies existing database migrations |
 | `npx prisma db seed` | Loads the sample dataset |
@@ -594,9 +748,16 @@ ProjectScope exposes server-side API routes for research, discovery, project man
 | `GET`, `POST` | `/api/analysis` | Reads or generates market-gap analysis |
 | `GET`, `POST` | `/api/concepts` | Reads or generates concepts |
 | `GET`, `POST` | `/api/pitch` | Reads or generates pitch material |
+| `PUT` | `/api/pitch` | Saves a hand-edited pitch |
 | `POST` | `/api/compare` | Compares project approaches |
 | `POST` | `/api/export` | Exports results in Markdown or JSON |
-| `GET` | `/api/health` | Reports provider configuration status |
+| `GET` | `/api/health` | Reports provider configuration and database status |
+
+Every route validates its input with Zod and returns errors in one shape:
+
+```json
+{ "error": { "code": "validation_error", "message": "…", "details": "…" } }
+```
 
 These endpoints are intended for application workflows. Consult the corresponding route handlers and schemas in `src/app/api/` before integrating external clients.
 
@@ -607,10 +768,13 @@ These endpoints are intended for application workflows. Consult the correspondin
 The repository is organized to keep the interface, business logic, provider integrations, and data layer separate.
 
 ```text
-Kritikal-Hacks/
+CYBERCHIX-ProjectScope/
 ├── prisma/
 │   ├── schema.prisma
+│   ├── migrations/
 │   └── seed.ts
+├── scripts/
+│   └── check-production-env.mjs   # Fails a production build that cannot work
 ├── src/
 │   ├── app/
 │   │   ├── page.tsx
@@ -632,6 +796,8 @@ Kritikal-Hacks/
 │   │   ├── compare-workspace.tsx
 │   │   ├── idea-studio.tsx
 │   │   ├── pitch-studio.tsx
+│   │   ├── report-generator.tsx
+│   │   ├── toggle-buttons.tsx
 │   │   └── export-buttons.tsx
 │   └── lib/
 │       ├── providers/
@@ -642,13 +808,17 @@ Kritikal-Hacks/
 │       │   ├── collect.ts
 │       │   ├── pipeline.ts
 │       │   ├── discovery.ts
+│       │   ├── analysis.ts
 │       │   ├── events.ts
 │       │   ├── sources.ts
 │       │   └── demo.ts
 │       ├── ai-schemas.ts
 │       ├── schema.ts
 │       ├── api.ts
+│       ├── background.ts        # `after()` wrapper for background jobs
 │       ├── db.ts
+│       ├── sqlite-adapter.ts    # Picks the SQLite or libSQL driver
+│       ├── database-url.ts
 │       ├── env.ts
 │       ├── errors.ts
 │       └── products.ts
@@ -656,6 +826,7 @@ Kritikal-Hacks/
 ├── .env.example
 ├── package.json
 ├── prisma.config.ts
+├── vercel.json
 ├── vitest.config.mts
 └── README.md
 ```

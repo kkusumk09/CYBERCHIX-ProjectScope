@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { defineConfig } from "prisma/config";
 
-import { resolveDatabaseUrl } from "./src/lib/database-url";
+import { resolveMigrationUrl } from "./src/lib/database-url";
 
 /**
  * Prisma CLI configuration (Prisma 7 style).
@@ -59,7 +59,7 @@ loadEnvFiles(rootDir);
 export default defineConfig({
   schema: path.join(rootDir, "prisma", "schema.prisma"),
   datasource: {
-    url: resolveDatabaseUrl(process.env.DATABASE_URL, rootDir),
+    url: resolveMigrationUrl(process.env.DATABASE_URL, rootDir),
   },
   migrations: {
     seed: "tsx prisma/seed.ts",

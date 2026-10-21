@@ -9,10 +9,10 @@
  * Everything it creates is flagged as demo data so the UI can label it
  * honestly. It never pretends to be live research.
  */
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 import { PrismaClient } from "../src/generated/prisma/client";
 
 import { resolveDatabaseUrl } from "../src/lib/database-url";
+import { createSqliteAdapter } from "../src/lib/sqlite-adapter";
 import { DEMO_CLUSTERS, DEMO_RECORDS, DEMO_REPORT } from "../src/lib/research/demo";
 import {
   DEMO_DISCOVERY_ANALYSIS,
@@ -24,7 +24,7 @@ import {
 } from "../src/lib/research/demo";
 
 const databaseUrl = resolveDatabaseUrl(process.env.DATABASE_URL, process.cwd());
-const adapter = new PrismaBetterSqlite3({ url: databaseUrl });
+const adapter = createSqliteAdapter(databaseUrl);
 const prisma = new PrismaClient({ adapter });
 
 function json(value: unknown): string {
@@ -33,6 +33,21 @@ function json(value: unknown): string {
 
 async function main() {
   console.log("Seeding ProjectScope with a demo research run…");
+
+  /*
+   * The seed clears the tables first so it is repeatable. On a hosted
+   * database that would destroy real research, so it only wipes a database
+   * that has nothing in it. Pass --force to wipe and reseed anyway.
+   */
+  const force = process.argv.includes("--force");
+  const existing = await prisma.researchJob.count();
+  if (existing > 0 && !force) {
+    console.log(
+      `The database already holds ${existing} research run(s) — nothing was changed. ` +
+        "Run `npm run db:seed -- --force` to wipe and reseed it.",
+    );
+    return;
+  }
 
   // Start from a clean slate so the seed is repeatable.
   await prisma.savedReport.deleteMany();

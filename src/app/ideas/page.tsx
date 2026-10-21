@@ -39,7 +39,7 @@ export default async function IdeasPage({ searchParams }: PageProps<"/ideas">) {
             action={
               <Link
                 href="/research"
-                className="inline-flex h-10 items-center rounded-lg bg-ink px-4 text-sm font-semibold text-ink hover:bg-ink-soft"
+                className="inline-flex h-10 items-center rounded-lg bg-ink px-4 text-sm font-semibold text-paper-2 hover:bg-ink-soft"
               >
                 Start a new research run
               </Link>
@@ -113,7 +113,9 @@ export default async function IdeasPage({ searchParams }: PageProps<"/ideas">) {
         </Alert>
       ) : null}
 
-      <IdeaStudio jobId={jobId} initialConcepts={initialConcepts} />
+      {/* `key` forces a remount when the run changes, so the studio never
+          shows the previous run's concepts. */}
+      <IdeaStudio key={jobId} jobId={jobId} initialConcepts={initialConcepts} />
     </div>
   );
 }

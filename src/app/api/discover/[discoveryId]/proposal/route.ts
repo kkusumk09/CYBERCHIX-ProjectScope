@@ -2,9 +2,12 @@ import { prisma } from "@/lib/db";
 import { jsonError } from "@/lib/api";
 import { proposalRequestSchema, type SourceId } from "@/lib/schema";
 import { buildProposalForConcept, runDiscovery } from "@/lib/research/discovery";
+import { runAfterResponse } from "@/lib/background";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+/** Regenerating re-runs the whole discovery pipeline. */
+export const maxDuration = 300;
 
 /**
  * POST /api/discover/[discoveryId]/proposal
@@ -46,19 +49,24 @@ export async function POST(request: Request, context: { params: Promise<{ discov
         data: { status: "queued", stage: "queued", errorMessage: null },
       });
 
-      void runDiscovery({
-        discoveryId,
-        jobId: discovery.jobId,
-        interests: discovery.interests,
-        techPreferences: discovery.techPreferences,
-        teamCapabilities: discovery.teamCapabilities,
-        constraints: discovery.constraints,
-        sources,
-        resultLimit: discovery.job.resultLimit,
-        conceptCount: 5,
-        language: "en",
-        location: "US",
-        isDemo: discovery.isDemo,
+      // `after` keeps the serverless invocation alive until the run finishes.
+      runAfterResponse(async () => {
+        await runDiscovery({
+          discoveryId,
+          jobId: discovery.jobId,
+          interests: discovery.interests,
+          techPreferences: discovery.techPreferences,
+          teamCapabilities: discovery.teamCapabilities,
+          constraints: discovery.constraints,
+          sources,
+          resultLimit: discovery.job.resultLimit,
+          // Reuse the count the user originally chose — regenerating must not
+          // silently change how many concepts are designed.
+          conceptCount: discovery.conceptCount,
+          language: "en",
+          location: "US",
+          isDemo: discovery.isDemo,
+        });
       });
 
       return Response.json({ discoveryId, status: "queued" }, { status: 202 });

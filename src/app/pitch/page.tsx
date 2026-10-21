@@ -55,7 +55,7 @@ export default async function PitchPage({ searchParams }: PageProps<"/pitch">) {
             action={
               <Link
                 href="/research"
-                className="inline-flex h-10 items-center rounded-lg bg-ink px-4 text-sm font-semibold text-ink hover:bg-ink-soft"
+                className="inline-flex h-10 items-center rounded-lg bg-ink px-4 text-sm font-semibold text-paper-2 hover:bg-ink-soft"
               >
                 Start a new research run
               </Link>
@@ -114,8 +114,10 @@ export default async function PitchPage({ searchParams }: PageProps<"/pitch">) {
         <JobSelect jobs={jobs} currentJobId={jobId} />
       </div>
 
+      {/* `key` forces a remount when the run changes, so the studio never
+          shows the previous run's pitch. */}
       <PitchStudio
-        key={initialPitch?.id ?? "empty"}
+        key={jobId}
         jobId={jobId}
         concepts={conceptRows}
         initialPitch={initialPitch}

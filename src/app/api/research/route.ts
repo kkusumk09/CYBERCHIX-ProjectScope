@@ -4,9 +4,16 @@ import { getEnv, getProviderStatus, isDemoMode } from "@/lib/env";
 import { stringifyJson } from "@/lib/json";
 import { researchRequestSchema } from "@/lib/schema";
 import { runResearch } from "@/lib/research/pipeline";
+import { runAfterResponse } from "@/lib/background";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+/**
+ * A research run calls several providers with a 45s timeout each, so the
+ * invocation needs more than the default function budget. On Vercel this also
+ * bounds how long the `after()` callback may keep running.
+ */
+export const maxDuration = 300;
 
 /**
  * POST /api/research — start a research run.
@@ -37,19 +44,26 @@ export async function POST(request: Request) {
       },
     });
 
-    // Fire and forget. The pipeline records its own progress and failures.
-    void runResearch({
-      jobId: job.id,
-      topic: job.topic,
-      problemStatement: job.problemStatement ?? "",
-      domain: job.domain ?? "",
-      targetUsers: job.targetUsers ?? "",
-      geography: job.geography ?? "",
-      sources: body.sources,
-      resultLimit: limit,
-      language: body.language,
-      location: body.location,
-      isDemo: isDemoMode(),
+    /*
+     * `after` keeps the invocation alive until the pipeline settles. Without
+     * it a serverless platform freezes the function as soon as the response
+     * is sent, and the run would never finish. The pipeline records its own
+     * progress and failures.
+     */
+    runAfterResponse(async () => {
+      await runResearch({
+        jobId: job.id,
+        topic: job.topic,
+        problemStatement: job.problemStatement ?? "",
+        domain: job.domain ?? "",
+        targetUsers: job.targetUsers ?? "",
+        geography: job.geography ?? "",
+        sources: body.sources,
+        resultLimit: limit,
+        language: body.language,
+        location: body.location,
+        isDemo: isDemoMode(),
+      });
     });
 
     return Response.json(

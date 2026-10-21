@@ -5,9 +5,12 @@ import { parseJson, stringifyJson } from "@/lib/json";
 import { discoveryRequestSchema, sourceCheckSchema } from "@/lib/schema";
 import { runDiscovery } from "@/lib/research/discovery";
 import { z } from "zod";
+import { runAfterResponse } from "@/lib/background";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+/** A discovery run searches several sources and then calls two models. */
+export const maxDuration = 300;
 
 /**
  * POST /api/discover — start a free-choice discovery run.
@@ -44,25 +47,29 @@ export async function POST(request: Request) {
         techPreferences: body.techPreferences,
         teamCapabilities: body.teamCapabilities,
         constraints: body.constraints,
+        conceptCount: body.conceptCount,
         status: "queued",
         stage: "queued",
         isDemo: demo,
       },
     });
 
-    void runDiscovery({
-      discoveryId: discovery.id,
-      jobId: job.id,
-      interests: body.interests,
-      techPreferences: body.techPreferences,
-      teamCapabilities: body.teamCapabilities,
-      constraints: body.constraints,
-      sources: body.sources,
-      resultLimit,
-      conceptCount: body.conceptCount,
-      language: body.language,
-      location: body.location,
-      isDemo: demo,
+    // `after` keeps the serverless invocation alive until the run finishes.
+    runAfterResponse(async () => {
+      await runDiscovery({
+        discoveryId: discovery.id,
+        jobId: job.id,
+        interests: body.interests,
+        techPreferences: body.techPreferences,
+        teamCapabilities: body.teamCapabilities,
+        constraints: body.constraints,
+        sources: body.sources,
+        resultLimit,
+        conceptCount: body.conceptCount,
+        language: body.language,
+        location: body.location,
+        isDemo: demo,
+      });
     });
 
     return Response.json(

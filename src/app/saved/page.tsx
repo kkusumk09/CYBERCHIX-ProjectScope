@@ -77,7 +77,7 @@ export default async function SavedPage() {
                   action={
                     <Link
                       href="/research"
-                      className="inline-flex h-10 items-center rounded-lg bg-ink px-4 text-sm font-semibold text-ink hover:bg-ink-soft"
+                      className="inline-flex h-10 items-center rounded-lg bg-ink px-4 text-sm font-semibold text-paper-2 hover:bg-ink-soft"
                     >
                       Start a research run
                     </Link>
@@ -153,7 +153,7 @@ export default async function SavedPage() {
                   action={
                     <Link
                       href="/projects"
-                      className="inline-flex h-10 items-center rounded-lg bg-ink px-4 text-sm font-semibold text-ink hover:bg-ink-soft"
+                      className="inline-flex h-10 items-center rounded-lg bg-ink px-4 text-sm font-semibold text-paper-2 hover:bg-ink-soft"
                     >
                       Open the explorer
                     </Link>

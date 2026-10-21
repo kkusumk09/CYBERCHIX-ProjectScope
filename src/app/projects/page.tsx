@@ -56,7 +56,7 @@ function FacetGroup({
                 href={buildHref(base, { [param]: isActive ? undefined : option.value })}
                 className={
                   isActive
-                    ? "inline-flex items-center gap-1 rounded-full bg-ink px-2.5 py-1 text-xs font-medium text-ink"
+                    ? "inline-flex items-center gap-1 rounded-full bg-ink px-2.5 py-1 text-xs font-medium text-paper-2"
                     : "inline-flex items-center gap-1 rounded-full border-[3px] border-ink bg-paper-2 px-2.5 py-1 text-xs font-medium text-ink/70 hover:border-ink hover:text-punch"
                 }
               >
@@ -107,7 +107,7 @@ export default async function ProjectsPage({ searchParams }: PageProps<"/project
   const awardOptions = [
     { value: "verified", count: facets.awards.verified },
     { value: "unverified", count: facets.awards.unverified },
-    { value: "none", count: 0 },
+    { value: "none", count: facets.awards.none },
   ].filter((option) => option.count > 0 || option.value === filters.award);
 
   return (
@@ -159,7 +159,7 @@ export default async function ProjectsPage({ searchParams }: PageProps<"/project
                 />
                 <button
                   type="submit"
-                  className="h-9 w-full rounded-lg bg-ink text-sm font-semibold text-ink transition-colors hover:bg-ink-soft"
+                  className="h-9 w-full rounded-lg bg-ink text-sm font-semibold text-paper-2 transition-colors hover:bg-ink-soft"
                 >
                   Search
                 </button>
@@ -198,7 +198,7 @@ export default async function ProjectsPage({ searchParams }: PageProps<"/project
                             className={cn(
                               "block truncate rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors",
                               isActive
-                                ? "bg-ink text-ink"
+                                ? "bg-ink text-paper-2"
                                 : "text-ink/70 hover:bg-ink-100 hover:text-punch",
                             )}
                             title={job.topic}
@@ -270,7 +270,7 @@ export default async function ProjectsPage({ searchParams }: PageProps<"/project
               action={
                 <Link
                   href="/research"
-                  className="inline-flex h-10 items-center rounded-lg bg-ink px-4 text-sm font-semibold text-ink hover:bg-ink-soft"
+                  className="inline-flex h-10 items-center rounded-lg bg-ink px-4 text-sm font-semibold text-paper-2 hover:bg-ink-soft"
                 >
                   Start a new research run
                 </Link>

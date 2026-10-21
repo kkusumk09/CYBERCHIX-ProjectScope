@@ -64,6 +64,8 @@ export function PitchStudio({
   const [clarityNotes, setClarityNotes] = useState<string[]>(initialPitch?.clarityNotes ?? []);
   const [isDemo, setIsDemo] = useState(initialPitch?.isDemo ?? false);
   const [pending, setPending] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [savedAt, setSavedAt] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -74,7 +76,9 @@ export function PitchStudio({
       const response = await fetch("/api/pitch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jobId, conceptId, extra }),
+        // `notes` is what the user actually built and tested. The model writes
+        // the pitch from it — leaving it out would make the field a no-op.
+        body: JSON.stringify({ jobId, conceptId, extra, notes }),
       });
       const payload = await response.json();
       if (!response.ok) {
@@ -86,10 +90,34 @@ export function PitchStudio({
       setClarityScore(pitch.clarityScore ?? null);
       setClarityNotes(pitch.clarityNotes ?? []);
       setIsDemo(Boolean(pitch.isDemo));
+      setSavedAt(null);
     } catch {
       setError("The pitch could not be generated. Check that the server is running.");
     } finally {
       setPending(false);
+    }
+  };
+
+  /** Persist the hand-edited pitch so a reload and the export both keep it. */
+  const save = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/pitch", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobId, content }),
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        setError(payload?.error?.message ?? "The pitch could not be saved.");
+        return;
+      }
+      setSavedAt(new Date().toLocaleTimeString());
+    } catch {
+      setError("The pitch could not be saved. Check that the server is running.");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -203,7 +231,7 @@ export function PitchStudio({
           <Field
             label="Your notes"
             htmlFor="notes"
-            hint="What you built, who talked to, what happened, would do next."
+            hint="What you built, who talked to, what happened, would do next. This is what the model writes from — anything you leave out cannot appear in the pitch."
           >
             <Textarea
               id="notes"
@@ -228,9 +256,6 @@ export function PitchStudio({
             <Button onClick={generate} disabled={pending}>
               {pending ? <Spinner /> : null}
               {pending ? "Writing…" : "Write the pitch"}
-            </Button>
-            <Button tone="paper" onClick={copyMarkdown}>
-              {copied ? "Copied" : "Copy as Markdown"}
             </Button>
             {clarityScore !== null ? (
               <Tag tone={clarityScore >= 70 ? "mint" : clarityScore >= 45 ? "acid" : "punch"}>
@@ -257,7 +282,10 @@ export function PitchStudio({
       <Card>
         <CardHeader
           title="Your pitch"
-          description="Everything is editable. Change anything that is not true of your project."
+          description="Everything is editable. Change anything that is not true of your project, then save it."
+          action={
+            savedAt ? <Tag tone="mint">saved {savedAt}</Tag> : null
+          }
         />
         <CardBody className="space-y-5">
           {fields.map((field) => (
@@ -290,6 +318,19 @@ export function PitchStudio({
               onChange={(event) => updateList("judgeQuestions", event.target.value)}
             />
           </Field>
+
+          <div className="flex flex-wrap items-center gap-3 border-t-[3px] border-ink/10 pt-4">
+            <Button onClick={save} disabled={saving}>
+              {saving ? <Spinner /> : null}
+              {saving ? "Saving…" : "Save changes"}
+            </Button>
+            <Button tone="paper" onClick={copyMarkdown}>
+              {copied ? "Copied" : "Copy as Markdown"}
+            </Button>
+            <p className="text-xs text-ink/60">
+              Saved pitches are what the Markdown and JSON exports contain.
+            </p>
+          </div>
         </CardBody>
       </Card>
 

@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { ExportButtons } from "@/components/export-buttons";
-import { GenerateButton } from "@/components/generate-button";
 import { JobSelect } from "@/components/job-select";
+import { ReportGenerator } from "@/components/report-generator";
 import { Alert, Tag, Card, CardBody, CardHeader, EmptyState, Stat } from "@/components/ui";
 import { prisma } from "@/lib/db";
 import { parseJson } from "@/lib/json";
@@ -64,7 +64,7 @@ export default async function ReportPage({ searchParams }: PageProps<"/report">)
             action={
               <Link
                 href="/research"
-                className="inline-flex h-10 items-center rounded-lg bg-ink px-4 text-sm font-semibold text-ink hover:bg-ink-soft"
+                className="inline-flex h-10 items-center rounded-lg bg-ink px-4 text-sm font-semibold text-paper-2 hover:bg-ink-soft"
               >
                 Start a new research run
               </Link>
@@ -110,14 +110,15 @@ export default async function ReportPage({ searchParams }: PageProps<"/report">)
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <JobSelect jobs={jobs} currentJobId={jobId} />
-          <GenerateButton
-            endpoint="/api/analysis"
-            body={{ jobId, focus: "" }}
-            label="Regenerate report"
-            pendingLabel="Analysing…"
-          />
           <ExportButtons jobId={jobId} />
         </div>
+      </div>
+
+      <div className="mb-6">
+        <ReportGenerator
+          jobId={jobId}
+          label={report ? "Regenerate report" : "Generate the report"}
+        />
       </div>
 
       {job.isDemo ? (
@@ -132,14 +133,6 @@ export default async function ReportPage({ searchParams }: PageProps<"/report">)
           <EmptyState
             title="No report yet"
             description="The pipeline writes a report automatically, or you can generate one now from the records that were collected."
-            action={
-              <GenerateButton
-                endpoint="/api/analysis"
-                body={{ jobId, focus: "" }}
-                label="Generate the report"
-                pendingLabel="Analysing…"
-              />
-            }
           />
         </div>
       ) : (
@@ -542,7 +535,7 @@ export default async function ReportPage({ searchParams }: PageProps<"/report">)
           <div className={cn("flex flex-wrap gap-2")}>
             <Link
               href={`/ideas?jobId=${job.id}`}
-              className="inline-flex h-10 items-center rounded-lg bg-ink px-4 text-sm font-semibold text-ink shadow-sm hover:bg-ink-soft"
+              className="inline-flex h-10 items-center rounded-lg bg-ink px-4 text-sm font-semibold text-paper-2 shadow-sm hover:bg-ink-soft"
             >
               Design an idea from these gaps
             </Link>

@@ -80,7 +80,7 @@ export default async function DiscoverPage({ searchParams }: PageProps<"/discove
                   className="flex flex-wrap items-center gap-3 rounded-xl border-[3px] border-ink bg-paper-2 px-4 py-3 text-sm transition-colors hover:border-ink"
                 >
                   <span className="font-medium text-ink">
-                    {run.job.resultCount} record(s) · {run.concepts ? "" : ""}
+                    {run.job.resultCount} record(s) ·{" "}
                     {parseJson<unknown[]>(run.concepts, []).length} concept(s)
                   </span>
                   <span className="text-xs text-ink/60">

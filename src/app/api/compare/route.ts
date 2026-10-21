@@ -5,6 +5,8 @@ import { compareRequestSchema } from "@/lib/schema";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+/** The comparison is produced by a live model call with a 45s timeout. */
+export const maxDuration = 300;
 
 /** POST /api/compare — compare the approaches behind a set of projects. */
 export async function POST(request: Request) {

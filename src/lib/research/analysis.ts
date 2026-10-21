@@ -251,6 +251,29 @@ export async function runConcepts(jobId: string, constraints: string, count: num
         "That the target users would adopt a tool at all without a procurement decision.",
       ],
     };
+
+    // Demo concepts are persisted too, so a reload shows the same concepts
+    // instead of an empty page. They stay flagged as demo data.
+    await prisma.proposedConcept.deleteMany({ where: { jobId } });
+    for (const concept of demo.concepts) {
+      await prisma.proposedConcept.create({
+        data: {
+          jobId,
+          title: concept.title,
+          tagline: concept.tagline,
+          problem: concept.problem,
+          targetUsers: concept.targetUsers,
+          solution: concept.solution,
+          differentiators: stringifyJson(concept.differentiators),
+          comparisons: stringifyJson(concept.comparisons),
+          risks: stringifyJson(concept.risks),
+          validationPlan: concept.validationPlan,
+          similarityWarning: concept.similarityWarning || null,
+          isDemo: true,
+        },
+      });
+    }
+
     return demo;
   }
 
@@ -325,7 +348,12 @@ export async function readConcepts(jobId: string) {
 /* Pitch Studio                                                               */
 /* -------------------------------------------------------------------------- */
 
-export async function runPitch(jobId: string, conceptId: string, extra: string): Promise<PitchContent> {
+export async function runPitch(
+  jobId: string,
+  conceptId: string,
+  extra: string,
+  notes = "",
+): Promise<PitchContent> {
   const job = await loadJobWithProjects(jobId);
   const concept = conceptId
     ? await prisma.proposedConcept.findFirst({ where: { id: conceptId, jobId } })
@@ -338,12 +366,15 @@ export async function runPitch(jobId: string, conceptId: string, extra: string):
     const content: PitchContent = {
       problem: job.problemStatement || "Students with a stated problem are not served by the sampled approaches.",
       targetUser: job.targetUsers || "The target user the user described.",
-      solution: "A demo pitch. No live model was called, so this text is a placeholder with the shape of a real pitch.",
+      solution: notes
+        ? `Built from your notes: ${notes.slice(0, 600)}`
+        : "A demo pitch. No live model was called, so this text is a placeholder with the shape of a real pitch.",
       differentiator:
         "Demo mode. The differentiator is where the real analysis would go — it comes from comparing your idea with the collected projects.",
       valueProposition: "Demo mode placeholder.",
-      validationResults:
-        "No experiments have been run. Run the suggested experiments and report the real numbers here — never a placeholder.",
+      validationResults: notes
+        ? `From your notes: ${notes.slice(0, 600)}`
+        : "No experiments have been run. Run the suggested experiments and report the real numbers here — never a placeholder.",
       businessModel: "Demo mode placeholder.",
       goToMarket: "Demo mode placeholder.",
       demoOutline: [
@@ -376,6 +407,7 @@ export async function runPitch(jobId: string, conceptId: string, extra: string):
 
   const review = await reviewPitch({
     notes: [
+      notes ? `Notes from the user about what they built and tested:\n${notes}` : "",
       job.problemStatement ? `Problem statement: ${job.problemStatement}` : "",
       job.targetUsers ? `Target users: ${job.targetUsers}` : "",
       job.domain ? `Domain: ${job.domain}` : "",
@@ -444,6 +476,29 @@ export async function readPitch(jobId: string) {
     isDemo: pitch.isDemo,
     updatedAt: pitch.updatedAt.toISOString(),
   };
+}
+
+/**
+ * Persist a pitch the user edited by hand.
+ *
+ * The Pitch Studio says "everything is editable", so the edited text has to
+ * survive a reload and it has to be what the export contains. Without this
+ * the stored pitch would still be the model-generated original.
+ */
+export async function savePitch(jobId: string, content: PitchContent) {
+  const parsed = pitchContentSchema.parse(content);
+  await prisma.pitch.upsert({
+    where: { jobId },
+    create: {
+      jobId,
+      content: stringifyJson(parsed),
+      clarityScore: null,
+      clarityNotes: stringifyJson([]),
+      isDemo: false,
+    },
+    update: { content: stringifyJson(parsed) },
+  });
+  return readPitch(jobId);
 }
 
 /* -------------------------------------------------------------------------- */

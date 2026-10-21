@@ -1,7 +1,7 @@
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 import { PrismaClient } from "@/generated/prisma/client";
 
 import { resolveDatabaseUrl } from "@/lib/database-url";
+import { createSqliteAdapter } from "@/lib/sqlite-adapter";
 
 /**
  * Prisma client singleton.
@@ -15,15 +15,14 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 /**
- * Prisma 7 talks to SQLite through a driver adapter. The URL is resolved
- * here so the CLI (prisma.config.ts) and the app always use the same file.
+ * The URL is resolved here so the CLI (prisma.config.ts) and the app always
+ * point at the same database, whatever the current working directory is.
  */
 const databaseUrl = resolveDatabaseUrl(process.env.DATABASE_URL, process.cwd());
 
 function createClient() {
-  const adapter = new PrismaBetterSqlite3({ url: databaseUrl });
   return new PrismaClient({
-    adapter,
+    adapter: createSqliteAdapter(databaseUrl),
     log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],
   });
 }

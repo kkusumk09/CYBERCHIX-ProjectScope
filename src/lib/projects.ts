@@ -44,13 +44,15 @@ export interface ProjectRow {
   relevance: number;
   jobId: string;
   isSaved: boolean;
+  /** True when the record came from the bundled demo dataset, not live research. */
+  isDemo: boolean;
 }
 
 export interface ProjectFacets {
   platforms: Array<{ value: string; count: number }>;
   technologies: Array<{ value: string; count: number }>;
   domains: Array<{ value: string; count: number }>;
-  awards: { verified: number; unverified: number };
+  awards: { verified: number; unverified: number; none: number };
 }
 
 export async function queryProjects(filters: ProjectFilters): Promise<{
@@ -109,7 +111,10 @@ export async function queryProjects(filters: ProjectFilters): Promise<{
   if (filters.award === "verified") {
     results = results.filter(({ project }) => project.awardVerified);
   } else if (filters.award === "unverified") {
-    results = results.filter(({ project }) => !project.awardVerified);
+    // "Unverified" means an award was claimed but could not be confirmed.
+    // Records with no award at all belong to the "none" bucket, otherwise the
+    // facet count would not match the number of rows shown.
+    results = results.filter(({ project }) => Boolean(project.award) && !project.awardVerified);
   } else if (filters.award === "none") {
     results = results.filter(({ project }) => !project.award);
   }
@@ -123,7 +128,12 @@ export async function queryProjects(filters: ProjectFilters): Promise<{
   const start = (page - 1) * pageSize;
   const pageRows = results.slice(start, start + pageSize);
 
+  /*
+   * Facet counts are scoped to the same run the list is showing, so a badge
+   * always matches the number of records behind it.
+   */
   const facetRows = await prisma.project.findMany({
+    where: filters.jobId ? { results: { some: { jobId: filters.jobId } } } : {},
     select: { platform: true, technologies: true, domain: true, award: true, awardVerified: true },
   });
 
@@ -132,6 +142,7 @@ export async function queryProjects(filters: ProjectFilters): Promise<{
   const domains = new Map<string, number>();
   let verifiedAwards = 0;
   let unverifiedAwards = 0;
+  let noAward = 0;
 
   for (const project of facetRows) {
     platforms.set(project.platform, (platforms.get(project.platform) ?? 0) + 1);
@@ -142,6 +153,8 @@ export async function queryProjects(filters: ProjectFilters): Promise<{
     if (project.award) {
       if (project.awardVerified) verifiedAwards += 1;
       else unverifiedAwards += 1;
+    } else {
+      noAward += 1;
     }
   }
 
@@ -174,6 +187,7 @@ export async function queryProjects(filters: ProjectFilters): Promise<{
     relevance: result.relevance,
     jobId: result.jobId,
     isSaved: result.project.savedBy.length > 0,
+    isDemo: result.isDemo,
   }));
 
   return {
@@ -186,7 +200,7 @@ export async function queryProjects(filters: ProjectFilters): Promise<{
       platforms: toOptions(platforms),
       technologies: toOptions(technologies),
       domains: toOptions(domains),
-      awards: { verified: verifiedAwards, unverified: unverifiedAwards },
+      awards: { verified: verifiedAwards, unverified: unverifiedAwards, none: noAward },
     },
   };
 }

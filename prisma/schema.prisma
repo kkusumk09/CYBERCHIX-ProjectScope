@@ -271,6 +271,9 @@ model IdeaDiscovery {
   techPreferences  String   @default("")
   teamCapabilities String   @default("")
   constraints      String   @default("")
+  /// How many concepts the user asked for. Regenerating reuses it, so the
+  /// second run does not silently change the scope.
+  conceptCount     Int      @default(5)
   status           String   @default("queued")
   stage            String   @default("queued")
   isDemo           Boolean  @default(false)

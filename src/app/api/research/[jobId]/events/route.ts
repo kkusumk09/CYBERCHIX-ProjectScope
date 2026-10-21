@@ -4,6 +4,12 @@ import { readEvents } from "@/lib/research/events";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+/**
+ * The stream stays open for as long as the run takes, so it needs the same
+ * budget as the run itself. Without it a serverless platform would cut the
+ * stream off after the default function duration.
+ */
+export const maxDuration = 300;
 
 /**
  * GET /api/research/[jobId]/events — server-sent events for research progress.

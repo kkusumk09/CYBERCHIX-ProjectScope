@@ -5,14 +5,14 @@
   "description": "ProjectScope — AI-powered hackathon project intelligence. Find the gap nobody filled.",
   "repository": {
     "type": "git",
-    "url": "https://github.com/NNemesis16/Kritikal-Hacks.git"
+    "url": "https://github.com/kkusumk09/CYBERCHIX-ProjectScope.git"
   },
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "db:migrate": "prisma migrate dev",
@@ -20,11 +20,15 @@
     "db:generate": "prisma generate",
     "db:seed": "prisma db seed",
     "db:reset": "prisma migrate reset --force",
-    "setup": "prisma generate && prisma migrate deploy && prisma db seed"
+    "postinstall": "prisma generate",
+    "setup": "prisma generate && prisma migrate deploy && prisma db seed",
+    "check:env": "node scripts/check-production-env.mjs",
+    "vercel-build": "npm run check:env && prisma migrate deploy && prisma generate && next build"
   },
   "dependencies": {
     "@google/genai": "^2.30.0",
     "@prisma/adapter-better-sqlite3": "^7.10.1",
+    "@prisma/adapter-libsql": "^7.10.1",
     "@prisma/client": "^7.10.1",
     "@tiny-fish/sdk": "^0.8.0",
     "lenis": "^1.3.27",

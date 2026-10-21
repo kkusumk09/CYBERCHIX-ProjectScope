@@ -131,7 +131,9 @@ export const manualImportSchema = z.object({
     .array(
       z.object({
         title: z.string().trim().min(1).max(300),
-        url: z.url().optional().default(""),
+        // A pasted record does not always have a link. An empty string is a
+        // valid value here — `z.url()` alone would reject the whole request.
+        url: z.union([z.url(), z.literal("")]).optional().default(""),
         platform: z.string().trim().max(120).optional().default(""),
         summary: z.string().trim().max(2000).optional().default(""),
         problemAddressed: z.string().trim().max(2000).optional().default(""),
@@ -164,6 +166,8 @@ export const pitchRequestSchema = z.object({
   jobId: z.string().min(1),
   conceptId: z.string().optional().default(""),
   extra: z.string().trim().max(2000).optional().default(""),
+  /** What the user actually built and tested. The model writes from this. */
+  notes: z.string().trim().max(4000).optional().default(""),
 });
 
 export const compareRequestSchema = z.object({
@@ -445,6 +449,13 @@ export const pitchReviewSchema = z.object({
   clarityNotes: z.array(z.string()).default([]),
 });
 export type PitchReview = z.infer<typeof pitchReviewSchema>;
+
+/** Saving a hand-edited pitch back to the database. */
+export const pitchUpdateSchema = z.object({
+  jobId: z.string().min(1),
+  content: pitchContentSchema,
+});
+export type PitchUpdate = z.infer<typeof pitchUpdateSchema>;
 
 /* -------------------------------------------------------------------------- */
 /* Stored records                                                             */
