@@ -690,6 +690,33 @@ answers. A healthy deployment looks like this:
 
 If `database.ok` is `false`, the `DATABASE_URL` or the auth token is wrong.
 
+### 6. Install scripts
+
+npm 11.19 and newer only run a dependency's install scripts when they are
+approved. The `allowScripts` field in `package.json` lists the ones this
+project needs — `better-sqlite3` has to build its native binding, and the
+Prisma packages have to place their engines.
+
+```json
+"allowScripts": {
+  "better-sqlite3": true,
+  "prisma": true,
+  "@prisma/engines": true,
+  "esbuild": true,
+  "unrs-resolver": true,
+  "protobufjs": true,
+  "@google/genai": true
+}
+```
+
+The names are unpinned on purpose, so an upgraded dependency stays approved.
+`.npmrc` sets `allow-scripts-pin=false` so `npm approve-scripts` keeps writing
+name-only entries.
+
+The root `postinstall` script runs `prisma generate`, so the Prisma client is
+built right after `npm install` — including on Vercel, where the generated
+output is git-ignored.
+
 ### Deploying somewhere else
 
 The application is not tied to Vercel. On a long-lived Node server:

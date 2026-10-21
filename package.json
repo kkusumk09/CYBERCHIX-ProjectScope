@@ -56,5 +56,14 @@
     "typescript": "^5",
     "vite-tsconfig-paths": "^6.1.1",
     "vitest": "^5.0.5"
+  },
+  "allowScripts": {
+    "better-sqlite3": true,
+    "prisma": true,
+    "@prisma/engines": true,
+    "esbuild": true,
+    "unrs-resolver": true,
+    "protobufjs": true,
+    "@google/genai": true
   }
 }
