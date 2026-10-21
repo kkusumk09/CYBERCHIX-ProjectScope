@@ -37,5 +37,12 @@ export default defineConfig({
     exclude: ["node_modules/**", ".next/**"],
     testTimeout: 30_000,
     hookTimeout: 60_000,
+    /*
+     * The test files share one SQLite file, and SQLite allows only one writer
+     * at a time. Running the files in parallel made the integration tests
+     * fail intermittently with a busy timeout, so they run one after another.
+     * The suite takes a few seconds either way.
+     */
+    fileParallelism: false,
   },
 });

@@ -26,9 +26,13 @@ export function resolveDatabaseUrl(raw: string | undefined, rootDir: string): st
  * Build the URL the Prisma CLI should use.
  *
  * For a hosted libSQL/Turso database the CLI needs the auth token. The
- * runtime adapter takes the token as a separate option, but the migration
- * engine only understands a connection string, so the token is folded into
- * the URL as the `authToken` query parameter.
+ * runtime adapter takes the token as a separate option, but tools that only
+ * understand a connection string — `prisma migrate diff --from-url`, the
+ * Turso CLI — need it folded into the URL as the `authToken` query parameter.
+ *
+ * Note that the Prisma *schema engine* still refuses a `libsql://` URL, so
+ * this is not used to run migrations against a hosted database. Those are
+ * applied by `scripts/migrate-libsql.mjs` instead.
  *
  * The token is never logged or printed.
  */

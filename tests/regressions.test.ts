@@ -1,4 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { createClient } from "@libsql/client";
 
 import { prisma } from "@/lib/db";
 import {
@@ -119,6 +124,104 @@ describe("pitch request validation", () => {
   });
 });
 
+/* -------------------------------------------------------------------------- */
+
+describe("the hosted database migration runner", () => {
+  const repoRoot = path.resolve(__dirname, "..");
+  let directory = "";
+  let databaseFile = "";
+
+  beforeAll(() => {
+    directory = mkdtempSync(path.join(tmpdir(), "projectscope-migrate-"));
+    databaseFile = path.join(directory, "test.db");
+  });
+
+  afterAll(() => {
+    /*
+     * The native libSQL client can keep a handle on the database file for a
+     * moment on Windows, which makes the directory undeletable for a while.
+     * The directory lives in the system temp folder, so failing the suite
+     * over a leftover file is not worth it.
+     */
+    try {
+      rmSync(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    } catch {
+      // Deliberately ignored.
+    }
+  });
+
+  function run(): string {
+    return execFileSync(process.execPath, ["scripts/migrate-libsql.mjs"], {
+      cwd: repoRoot,
+      encoding: "utf8",
+      env: { ...process.env, DATABASE_URL: `file:${databaseFile}` },
+    });
+  }
+
+  it("applies every migration to an empty database", () => {
+    const output = run();
+    expect(output).toContain("Applied");
+  });
+
+  it("produces the tables the application needs", async () => {
+    const client = createClient({ url: `file:${databaseFile}` });
+    try {
+      const tables = await client.execute(
+        "SELECT name FROM sqlite_master WHERE type='table'",
+      );
+      const names = tables.rows.map((row) => String(row.name));
+      for (const table of [
+        "ResearchJob",
+        "ResearchResult",
+        "Project",
+        "MarketGapReport",
+        "ProposedConcept",
+        "Pitch",
+        "IdeaDiscovery",
+        "Proposal",
+      ]) {
+        expect(names).toContain(table);
+      }
+    } finally {
+      client.close();
+    }
+  });
+
+  it("produces the column the concept count needs", async () => {
+    const client = createClient({ url: `file:${databaseFile}` });
+    try {
+      const columns = await client.execute('PRAGMA table_info("IdeaDiscovery")');
+      const names = columns.rows.map((row) => String(row.name));
+      expect(names).toContain("conceptCount");
+    } finally {
+      client.close();
+    }
+  });
+
+  it("is idempotent — a second run applies nothing", () => {
+    const output = run();
+    expect(output).toContain("already up to date");
+  });
+
+  it("refuses a database it does not understand", () => {
+    let output = "";
+    let status = 0;
+    try {
+      output = execFileSync(process.execPath, ["scripts/migrate-libsql.mjs"], {
+        cwd: repoRoot,
+        encoding: "utf8",
+        env: { ...process.env, DATABASE_URL: "postgres://user:pass@host/db" },
+        stdio: "pipe",
+      });
+    } catch (error) {
+      output = String((error as { stderr?: string }).stderr ?? "");
+      status = (error as { status?: number }).status ?? 1;
+    }
+    expect(status).not.toBe(0);
+    expect(output).toContain("Unsupported");
+  });
+});
+
 describe("database url resolution", () => {
   it("resolves a relative file url against the prisma folder", () => {
     const resolved = resolveDatabaseUrl("file:./dev.db", "/tmp/project");
@@ -147,7 +250,7 @@ describe("database url resolution", () => {
     );
   });
 
-  it("chooses the libsql driver for a hosted url and the file driver otherwise", () => {
+  it("uses the libsql driver for both a hosted url and a local file", () => {
     const hosted = createSqliteAdapter("libsql://db.turso.io") as unknown as {
       adapterName: string;
       provider: string;
@@ -156,8 +259,10 @@ describe("database url resolution", () => {
       adapterName: string;
       provider: string;
     };
+    // One adapter for both backends. The native module it loads is built
+    // against NAPI, so it keeps working when the Node version changes.
     expect(hosted.adapterName).toBe("@prisma/adapter-libsql");
-    expect(local.adapterName).toBe("@prisma/adapter-better-sqlite3");
+    expect(local.adapterName).toBe("@prisma/adapter-libsql");
     // Both speak the same dialect, so the Prisma schema is identical.
     expect(hosted.provider).toBe("sqlite");
     expect(local.provider).toBe("sqlite");

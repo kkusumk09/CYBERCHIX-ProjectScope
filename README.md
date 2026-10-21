@@ -297,8 +297,8 @@ ProjectScope combines a modern web application framework, structured data valida
 | Lenis | Smooth scrolling |
 | Prisma 7 | Database access and data modeling |
 | SQLite / libSQL | Relational database — a local file in development, hosted Turso in production |
-| `better-sqlite3` | SQLite driver adapter (local file) |
-| `@prisma/adapter-libsql` | libSQL/Turso driver adapter (hosted database) |
+| `@prisma/adapter-libsql` | Driver adapter for both backends (local file and hosted) |
+| `@libsql/client` | The SQLite client: local `file:` and remote HTTP dialects |
 | Zod v4 | Input validation and structured data validation |
 | Server-Sent Events | Live research progress updates |
 | Next.js `after()` | Keeps background research jobs alive on a serverless platform |
@@ -528,6 +528,11 @@ migrations work against both supported backends.
 | `libsql://<db>.turso.io` | Hosted libSQL (Turso) | Production, including Vercel |
 
 The driver is chosen automatically from the URL scheme in `src/lib/sqlite-adapter.ts`.
+One adapter handles both: `@libsql/client` speaks the local `file:` dialect and
+the remote HTTP dialect, so the application never loads a second native module.
+The one it does load is built against NAPI, so it keeps working when the Node
+version changes — unlike a V8-ABI-specific build.
+
 No schema change and no separate migration set is needed to move between them.
 
 ### Example `.env.local`
@@ -607,8 +612,13 @@ Apply the migrations to the hosted database once, from your machine:
 ```bash
 $env:DATABASE_URL = "libsql://<your-database>.turso.io"
 $env:TURSO_AUTH_TOKEN = "<your-token>"
-npx prisma migrate deploy
+npm run db:deploy:hosted
 ```
+
+> `npx prisma migrate deploy` does **not** work here — the Prisma schema engine
+> rejects a `libsql://` connection string with P1013. Use
+> `npm run db:deploy:hosted`, which applies the same migration files through
+> the libSQL client. See [How the migrations reach a hosted database](#how-the-migrations-reach-a-hosted-database).
 
 ### 2. Import the project
 
@@ -630,9 +640,49 @@ which runs, in order:
 1. `npm run check:env` — fails the build with an actionable message if
    `DATABASE_URL` is missing or still points at a local file. A deployment that
    cannot store data is worse than a failed deployment.
-2. `prisma migrate deploy` — applies any pending migrations to the hosted database.
+2. `npm run db:deploy:hosted` — applies any pending migrations to the hosted
+   database (see below).
 3. `prisma generate` — builds the Prisma client (its output is git-ignored).
 4. `next build`.
+
+#### How the migrations reach a hosted database
+
+This needs a word of explanation, because it is not what you might expect.
+
+**The Prisma schema engine only accepts `file:` connection strings.** Pointed at
+a Turso database it fails with:
+
+```
+Error: P1013: The provided database string is invalid. The scheme is not
+recognized in database URL.
+```
+
+Prisma's own documentation says the same thing for Turso: schema changes go
+through `prisma migrate diff` plus the Turso CLI. Neither of those is
+available inside a Vercel build, and `migrate diff` only *generates* SQL — it
+does not apply it.
+
+The migrations in `prisma/migrations/` are plain SQLite, and libSQL **is**
+SQLite, so the same SQL runs unchanged over the wire. `scripts/migrate-libsql.mjs`
+therefore applies them directly with `@libsql/client` — the same library the
+runtime adapter uses. It keeps its own bookkeeping table, so a re-deploy
+applies nothing and never double-applies a migration.
+
+```bash
+# The same command works locally and on Vercel.
+npm run db:deploy:hosted
+```
+
+It dispatches on the URL scheme:
+
+| `DATABASE_URL` | What runs |
+|---|---|
+| `file:./dev.db` | `prisma migrate deploy` — the Prisma CLI, as usual |
+| `libsql://…` | `scripts/migrate-libsql.mjs` — the libSQL runner |
+
+The migration files stay the single source of truth: a migration written with
+`prisma migrate dev` is picked up by both paths.
+
 
 ### 3. Background jobs and long requests
 
@@ -694,12 +744,11 @@ If `database.ok` is `false`, the `DATABASE_URL` or the auth token is wrong.
 
 npm 11.19 and newer only run a dependency's install scripts when they are
 approved. The `allowScripts` field in `package.json` lists the ones this
-project needs — `better-sqlite3` has to build its native binding, and the
-Prisma packages have to place their engines.
+project needs — the Prisma packages have to place their engines, and the build
+tooling has to fetch its binaries.
 
 ```json
 "allowScripts": {
-  "better-sqlite3": true,
   "prisma": true,
   "@prisma/engines": true,
   "esbuild": true,
@@ -801,7 +850,9 @@ CYBERCHIX-ProjectScope/
 │   ├── migrations/
 │   └── seed.ts
 ├── scripts/
-│   └── check-production-env.mjs   # Fails a production build that cannot work
+│   ├── check-production-env.mjs   # Fails a production build that cannot work
+│   ├── migrate.mjs                # Picks the right migration path
+│   └── migrate-libsql.mjs         # Applies migrations to a hosted database
 ├── src/
 │   ├── app/
 │   │   ├── page.tsx

@@ -10,10 +10,9 @@ const nextConfig: NextConfig = {
   // native/dynamic parts are not rewritten.
   serverExternalPackages: [
     "@prisma/client",
-    "@prisma/adapter-better-sqlite3",
     "@prisma/adapter-libsql",
-    "better-sqlite3",
     "@libsql/client",
+    "libsql",
   ],
 
   turbopack: {
