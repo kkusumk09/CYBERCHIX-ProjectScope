@@ -668,6 +668,11 @@ therefore applies them directly with `@libsql/client` — the same library the
 runtime adapter uses. It keeps its own bookkeeping table, so a re-deploy
 applies nothing and never double-applies a migration.
 
+Each migration is applied inside a transaction, together with the row that
+records it. If a statement fails the transaction is rolled back, so the
+database is never left half-migrated and the next deploy starts from the last
+migration that applied cleanly.
+
 ```bash
 # The same command works locally and on Vercel.
 npm run db:deploy:hosted
@@ -794,8 +799,9 @@ The following commands are useful during development.
 | `npm run build` | Creates a production build |
 | `npm run check:env` | Validates the production configuration |
 | `npm run vercel-build` | The production build used by Vercel |
+| `npm run db:deploy:hosted` | Applies the migrations to the configured database |
 | `npx prisma generate` | Generates the Prisma client |
-| `npx prisma migrate deploy` | Applies existing database migrations |
+| `npx prisma migrate deploy` | Applies the migrations with the Prisma CLI (local files only) |
 | `npx prisma db seed` | Loads the sample dataset |
 
 On Windows PowerShell, prefix npm and npx commands with `.cmd` if execution policy restrictions prevent them from running.

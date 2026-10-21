@@ -29,7 +29,9 @@ import { createClient } from "@libsql/client";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(here, "..");
-const migrationsDir = path.join(rootDir, "prisma", "migrations");
+const migrationsDir = process.env.PROJECTSCOPE_MIGRATIONS_DIR
+  ? path.resolve(process.env.PROJECTSCOPE_MIGRATIONS_DIR)
+  : path.join(rootDir, "prisma", "migrations");
 
 const TRACKING_TABLE = "_projectscope_migrations";
 
@@ -125,20 +127,28 @@ async function main() {
 
       console.log(`[projectscope] Applying ${migration.name}…`);
 
+      /*
+       * The migration and its bookkeeping row are applied in one transaction,
+       * so a failure can never leave the database and the tracking table
+       * disagreeing. If a statement fails the transaction is rolled back, so
+       * a re-deploy starts from the last migration that applied cleanly.
+       */
+      const transaction = await client.transaction("write");
       try {
-        await client.executeMultiple(migration.sql);
+        await transaction.executeMultiple(migration.sql);
+        await transaction.execute({
+          sql: `INSERT INTO "${TRACKING_TABLE}" ("name", "checksum", "applied_at") VALUES (?, ?, ?)`,
+          args: [migration.name, migration.checksum, new Date().toISOString()],
+        });
+        await transaction.commit();
       } catch (error) {
+        await transaction.rollback().catch(() => undefined);
         fail(
-          `The migration "${migration.name}" failed. The database was left at the last migration ` +
-            "that applied cleanly. Fix the cause and deploy again.",
+          `The migration "${migration.name}" failed and was rolled back. The database was left at ` +
+            "the last migration that applied cleanly. Fix the cause and deploy again.",
           error,
         );
       }
-
-      await client.execute({
-        sql: `INSERT INTO "${TRACKING_TABLE}" ("name", "checksum", "applied_at") VALUES (?, ?, ?)`,
-        args: [migration.name, migration.checksum, new Date().toISOString()],
-      });
 
       count += 1;
     }

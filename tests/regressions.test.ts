@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { createClient } from "@libsql/client";
@@ -219,6 +219,56 @@ describe("the hosted database migration runner", () => {
     }
     expect(status).not.toBe(0);
     expect(output).toContain("Unsupported");
+  });
+
+  it("rolls a failed migration back, leaving the database clean", async () => {
+    const brokenDir = path.join(directory, "broken-migrations");
+    const brokenMigration = path.join(brokenDir, "20260101000000_broken");
+    mkdirSync(brokenMigration, { recursive: true });
+    writeFileSync(
+      path.join(brokenMigration, "migration.sql"),
+      'CREATE TABLE "Survivor" ("id" TEXT PRIMARY KEY);\nTHIS IS NOT SQL;\n',
+      "utf8",
+    );
+
+    const brokenDb = path.join(directory, "broken.db");
+    let status = 0;
+    let output = "";
+    try {
+      output = execFileSync(process.execPath, ["scripts/migrate-libsql.mjs"], {
+        cwd: repoRoot,
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          DATABASE_URL: `file:${brokenDb}`,
+          PROJECTSCOPE_MIGRATIONS_DIR: brokenDir,
+        },
+        stdio: "pipe",
+      });
+    } catch (error) {
+      output = String((error as { stderr?: string }).stderr ?? "");
+      status = (error as { status?: number }).status ?? 1;
+    }
+
+    expect(status).not.toBe(0);
+    expect(output).toContain("rolled back");
+
+    // The half-applied table must not exist, and the migration must not be
+    // recorded as applied — otherwise the next deploy would skip it.
+    const client = createClient({ url: `file:${brokenDb}` });
+    try {
+      const tables = await client.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='Survivor'",
+      );
+      expect(tables.rows).toHaveLength(0);
+
+      const applied = await client.execute(
+        'SELECT "name" FROM "_projectscope_migrations"',
+      );
+      expect(applied.rows).toHaveLength(0);
+    } finally {
+      client.close();
+    }
   });
 });
 
